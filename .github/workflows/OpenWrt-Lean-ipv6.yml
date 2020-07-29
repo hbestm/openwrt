@@ -1,0 +1,764 @@
+#=================================================
+
+# Description: Build OpenWrt using GitHub Actions
+
+# Author: sirpdboy
+
+# https://github.com/sirpdboy/Openwrt
+
+name: Sirpdboy-OpenWrt-Lean-ipv6-CI
+
+on:
+
+  push:
+
+    branches: 
+
+      - master
+
+  schedule:
+
+    - cron: '0 1 * * *'
+
+  # release:
+
+  #   types: [published]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+     - name: Checkout
+
+       uses: actions/checkout@main
+
+       with:
+
+          ref: master
+
+     - name: Init Build
+
+       env:
+
+        DEBIAN_FRONTEND: noninteractive
+
+       run: |
+
+        docker rmi $(docker images -q)
+
+        sudo -E apt-get remove -y --purge azure-cli ghc zulu* hhvm llvm* firefox google* dotnet* powershell openjdk* mysql* php*
+
+        sudo -E apt-get update -y
+
+        sudo -E apt-get -y install build-essential asciidoc binutils bzip2 gawk gettext git libncurses5-dev libz-dev patch python3 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs gcc-multilib g++-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler antlr3 gperf
+
+        sudo -E apt-get autoremove -y --purge
+
+        sudo -E apt-get clean -y
+
+        sudo -E rm -rf /usr/share/dotnet /etc/mysql /etc/php
+
+     - name: Prepare Openwrt
+
+       run: |
+
+        sudo chown -R runner:runner /home/runner/work/openwrt
+
+        cp -r ./scripts/Ready_download.sh ./  &&/bin/bash Ready_download.sh
+
+     - name: Prepare Package
+
+       run: |
+
+        cd openwrt
+
+        cp -r ../scripts/update_package.sh ./ &&/bin/bash update_package.sh
+
+        chmod -R 755 ./
+
+        df -h
+
+     - name: Generate Configuration File
+
+       run: |
+
+        cd openwrt
+
+        # 修改LAN的IP地址
+
+        # sed -i 's/192.168.1.1/192.168.11.1/g' package/base-files/files/bin/config_generate
+
+        rm -f ./.config*
+
+        touch ./.config
+
+        #
+
+        # ========================固件定制部分=======================
+
+        # 
+
+        # 
+
+        # 如果不对本区块做出任何编辑, 则生成默认配置固件. 
+
+        # 
+
+        # 以下为定制化固件选项和说明:
+
+        #
+
+        #
+
+        # 有些插件/选项是默认开启的, 如果想要关闭, 请参照以下示例进行编写:
+
+        # 
+
+        #          =========================================
+
+        #         |  # 取消编译VMware镜像:                   |
+
+        #         |  cat >> .config <<EOF                   |
+
+        #         |  # CONFIG_VMDK_IMAGES is not set        |
+
+        #         |  EOF                                    |
+
+        #          =========================================
+
+        #
+
+        # 
+
+        # 以下是一些提前准备好的一些插件选项.
+
+        # 直接取消注释相应代码块即可应用. 不要取消注释代码块上的汉字说明.
+
+        # 如果不需要代码块里的某一项配置, 只需要删除相应行.
+
+        #
+
+        # 如果需要其他插件, 请按照示例自行添加.
+
+        # 注意, 只需添加依赖链顶端的包. 如果你需要插件 A, 同时 A 依赖 B, 即只需要添加 A.
+
+        # 
+
+        # 无论你想要对固件进行怎样的定制, 都需要且只需要修改 EOF 回环内的内容.
+
+        # 
+
+        # 编译x64固件:
+
+        cat >> .config <<EOF
+
+        CONFIG_TARGET_x86=y
+
+        CONFIG_TARGET_x86_64=y
+
+        CONFIG_TARGET_x86_64_DEVICE_generic=y
+
+        EOF
+
+        # 固件压缩:
+
+        # cat >> .config <<EOF
+
+        # CONFIG_TARGET_IMAGES_GZIP=y
+
+        # EOF        
+
+        # 取消编译VMware镜像: 
+
+        # cat >> .config <<EOF
+
+        # CONFIG_VMDK_IMAGES is not set
+
+        # EOF
+
+        # IPv6支持:
+
+        cat >> .config <<EOF
+
+        CONFIG_PACKAGE_dnsmasq_full_dhcpv6=y
+
+        CONFIG_PACKAGE_ipv6helper=y
+
+        EOF
+
+        # 多文件系统支持:
+
+        # cat >> .config <<EOF
+
+        # CONFIG_PACKAGE_kmod-fs-nfs=y
+
+        # CONFIG_PACKAGE_kmod-fs-nfs-common=y
+
+        # CONFIG_PACKAGE_kmod-fs-nfs-v3=y
+
+        # CONFIG_PACKAGE_kmod-fs-nfs-v4=y
+
+        # CONFIG_PACKAGE_kmod-fs-squashfs=y
+
+        # EOF 
+
+        # USB3.0支持:
+
+        cat >> .config <<EOF
+
+        CONFIG_PACKAGE_kmod-usb-ehci=y
+
+        CONFIG_PACKAGE_kmod-usb-uhci=y
+
+        CONFIG_PACKAGE_kmod-usb2=y
+
+        CONFIG_PACKAGE_kmod-usb2-pci=y
+
+        CONFIG_PACKAGE_kmod-usb3=y
+
+        EOF
+
+        # 固件空间大小:
+
+        cat >> .config <<EOF
+
+        CONFIG_TARGET_KERNEL_PARTSIZE=20
+
+        CONFIG_TARGET_ROOTFS_PARTSIZE=850
+
+        CONFIG_ZSTD_OPTIMIZE_O3=y
+
+        EOF
+
+        # 常用LuCI插件选择:
+
+        cat >> .config <<EOF
+
+        CONFIG_PACKAGE_autosamba=y
+
+        CONFIG_PACKAGE_luci-app-samba=y
+
+        # CONFIG_PACKAGE_luci-app-accesscontrol is not set
+
+        # CONFIG_PACKAGE_luci-app-adbyby-plus is not set
+
+        CONFIG_PACKAGE_luci-app-adguardhome=y
+
+        CONFIG_PACKAGE_luci-app-advanced=y
+
+        CONFIG_PACKAGE_luci-app-aria2=y
+
+        CONFIG_PACKAGE_luci-app-autopoweroff=y
+
+        CONFIG_PACKAGE_luci-app-beardropper=y
+
+        CONFIG_PACKAGE_luci-app-clash=y
+
+        CONFIG_PACKAGE_luci-app-control-mia=y
+
+        CONFIG_PACKAGE_luci-app-control-timewol=y
+
+        CONFIG_PACKAGE_luci-app-control-webrestriction=y
+
+        CONFIG_PACKAGE_luci-app-control-weburl=y
+
+        CONFIG_PACKAGE_luci-app-cpulimit=y
+
+        CONFIG_PACKAGE_luci-app-eqos=y
+
+        CONFIG_PACKAGE_luci-app-familycloud=y
+
+        CONFIG_PACKAGE_luci-app-fileassistant=m
+
+        CONFIG_PACKAGE_luci-app-filetransfer=y
+
+        CONFIG_PACKAGE_luci-app-frpc=y
+
+        CONFIG_PACKAGE_luci-app-hd-idle=y
+
+        CONFIG_PACKAGE_luci-app-ipsec-vpnd=y
+
+        CONFIG_PACKAGE_luci-app-jd-dailybonus=y
+
+        CONFIG_PACKAGE_luci-app-kodexplorer=m
+
+        CONFIG_PACKAGE_luci-app-koolddns=y
+
+        CONFIG_PACKAGE_luci-app-koolproxyR=y
+
+        CONFIG_PACKAGE_luci-app-minidlna=y
+
+        CONFIG_PACKAGE_luci-app-mwan3=y
+
+        CONFIG_PACKAGE_luci-app-netdata=y
+
+        CONFIG_PACKAGE_luci-app-nlbwmon=y
+
+        CONFIG_PACKAGE_luci-app-oaf=y
+
+        CONFIG_PACKAGE_luci-app-openclash=y
+
+        CONFIG_PACKAGE_luci-app-passwall=y
+
+        CONFIG_PACKAGE_luci-app-qbittorrent=y
+
+        CONFIG_PACKAGE_luci-app-serverchan=y
+
+        CONFIG_PACKAGE_luci-app-smartdns=y
+
+        CONFIG_PACKAGE_luci-app-smartinfo=y
+
+        CONFIG_PACKAGE_luci-app-softethervpn=y
+
+        CONFIG_PACKAGE_luci-app-syncdial=y
+
+        CONFIG_PACKAGE_luci-app-sfe=y
+
+        CONFIG_PACKAGE_luci-app-transmission=y
+
+        CONFIG_PACKAGE_luci-app-ttyd=y
+
+        CONFIG_PACKAGE_luci-app-usb-printer=y
+
+        CONFIG_PACKAGE_luci-app-vlmcsd=y
+
+        CONFIG_PACKAGE_luci-app-vsftpd=y
+
+        CONFIG_PACKAGE_luci-app-vssr=y
+
+        CONFIG_PACKAGE_luci-app-webadmin=y
+
+        CONFIG_PACKAGE_luci-app-wifischedule=m
+
+        CONFIG_PACKAGE_luci-app-xlnetacc=y
+
+        CONFIG_PACKAGE_luci-app-zerotier=y
+
+        CONFIG_LUCI_LANG_en=y
+
+        EOF
+
+        # LuCI主题:
+
+        cat >> .config <<EOF
+
+        CONFIG_PACKAGE_luci-theme-argon=y
+
+        CONFIG_PACKAGE_luci-theme-opentomcat=y
+
+        CONFIG_PACKAGE_luci-theme-btmod=y
+
+        EOF
+
+        # 常用软件包:
+
+        cat >> .config <<EOF
+
+        CONFIG_PACKAGE_curl=y
+
+        CONFIG_PACKAGE_htop=y
+
+        CONFIG_PACKAGE_screen=m
+
+        CONFIG_PACKAGE_wget=y
+
+        EOF
+
+        # 常用驱动Network Devices:
+
+        cat >> .config <<EOF
+
+        CONFIG_PACKAGE_r8169-firmware=y
+
+        CONFIG_PACKAGE_bnx2x-firmware=y
+
+        CONFIG_PACKAGE_kmod-3c59x=y
+
+        CONFIG_PACKAGE_kmod-8139cp=y
+
+        CONFIG_PACKAGE_kmod-8139too=y
+
+        CONFIG_PACKAGE_kmod-alx=y
+
+        CONFIG_PACKAGE_kmod-atl1=y
+
+        CONFIG_PACKAGE_kmod-atl1c=y
+
+        CONFIG_PACKAGE_kmod-atl1e=y
+
+        CONFIG_PACKAGE_kmod-atl2=y
+
+        CONFIG_PACKAGE_kmod-b44=y
+
+        CONFIG_PACKAGE_kmod-be2net=y
+
+        CONFIG_PACKAGE_kmod-bnx2=y
+
+        CONFIG_PACKAGE_kmod-bnx2x=y
+
+        CONFIG_PACKAGE_kmod-dm9000=y
+
+        CONFIG_PACKAGE_kmod-dummy=y
+
+        CONFIG_PACKAGE_kmod-e100=y
+
+        CONFIG_PACKAGE_kmod-e1000=y
+
+        CONFIG_PACKAGE_kmod-e1000e=y
+
+        CONFIG_PACKAGE_kmod-et131x=y
+
+        CONFIG_PACKAGE_kmod-ethoc=y
+
+        CONFIG_PACKAGE_kmod-forcedeth=y
+
+        CONFIG_PACKAGE_kmod-hfcmulti=y
+
+        CONFIG_PACKAGE_kmod-hfcpci=y
+
+        CONFIG_PACKAGE_kmod-i40e=y
+
+        CONFIG_PACKAGE_kmod-iavf=y
+
+        CONFIG_PACKAGE_kmod-ifb=y
+
+        CONFIG_PACKAGE_kmod-igb=y
+
+        CONFIG_PACKAGE_kmod-igbvf=y
+
+        CONFIG_PACKAGE_kmod-ixgbe=y
+
+        CONFIG_PACKAGE_kmod-ixgbevf=y
+
+        CONFIG_PACKAGE_kmod-libphy=y
+
+        CONFIG_PACKAGE_kmod-macvlan=y
+
+        CONFIG_PACKAGE_kmod-mdio-gpio=y
+
+        CONFIG_PACKAGE_kmod-mii=y
+
+        CONFIG_PACKAGE_kmod-mlx4-core=y
+
+        CONFIG_PACKAGE_kmod-mlx5-core=y
+
+        CONFIG_PACKAGE_kmod-natsemi=y
+
+        CONFIG_PACKAGE_kmod-ne2k-pci=y
+
+        CONFIG_PACKAGE_kmod-niu=y
+
+        CONFIG_PACKAGE_kmod-of-mdio=y
+
+        CONFIG_PACKAGE_kmod-pcnet32=y
+
+        CONFIG_PACKAGE_kmod-phy-bcm84881=y
+
+        CONFIG_PACKAGE_kmod-phy-broadcom=y
+
+        CONFIG_PACKAGE_kmod-phy-realtek=y
+
+        CONFIG_PACKAGE_kmod-phylib-broadcom=y
+
+        CONFIG_PACKAGE_kmod-phylink=y
+
+        CONFIG_PACKAGE_kmod-r6040=y
+
+        CONFIG_PACKAGE_kmod-r8125=y
+
+        CONFIG_PACKAGE_kmod-r8168=y
+
+        CONFIG_PACKAGE_kmod-r8169=y
+
+        CONFIG_PACKAGE_kmod-sfp=y
+
+        CONFIG_PACKAGE_kmod-siit=y
+
+        CONFIG_PACKAGE_kmod-sis190=y
+
+        CONFIG_PACKAGE_kmod-sis900=y
+
+        CONFIG_PACKAGE_kmod-skge=y
+
+        CONFIG_PACKAGE_kmod-sky2=y
+
+        CONFIG_PACKAGE_kmod-solos-pci=y
+
+        CONFIG_PACKAGE_kmod-spi-ks8995=y
+
+        CONFIG_PACKAGE_kmod-swconfig=y
+
+        CONFIG_PACKAGE_kmod-switch-bcm53xx=y
+
+        CONFIG_PACKAGE_kmod-switch-bcm53xx-mdio=y
+
+        CONFIG_PACKAGE_kmod-switch-ip17xx=y
+
+        CONFIG_PACKAGE_kmod-switch-mvsw61xx=y
+
+        CONFIG_PACKAGE_kmod-switch-rtl8306=y
+
+        CONFIG_PACKAGE_kmod-switch-rtl8366-smi=y
+
+        CONFIG_PACKAGE_kmod-switch-rtl8366rb=y
+
+        CONFIG_PACKAGE_kmod-switch-rtl8366s=y
+
+        CONFIG_PACKAGE_kmod-switch-rtl8367b=y
+
+        CONFIG_PACKAGE_kmod-tg3=y
+
+        CONFIG_PACKAGE_kmod-tulip=y
+
+        CONFIG_PACKAGE_kmod-via-rhine=y
+
+        CONFIG_PACKAGE_kmod-via-velocity=y
+
+        CONFIG_PACKAGE_kmod-vmxnet3=y
+
+        EOF
+
+        # 常用驱动USB Support:
+
+        cat >> .config <<EOF
+
+        CONFIG_PACKAGE_kmod-chaoskey=y
+
+        CONFIG_PACKAGE_kmod-usb-acm=y
+
+        CONFIG_PACKAGE_kmod-usb-atm=y
+
+        CONFIG_PACKAGE_kmod-usb-atm-cxacru=y
+
+        CONFIG_PACKAGE_kmod-usb-atm-speedtouch=y
+
+        CONFIG_PACKAGE_kmod-usb-atm-ueagle=y
+
+        CONFIG_PACKAGE_kmod-usb-cm109=y
+
+        CONFIG_PACKAGE_kmod-usb-core=y
+
+        CONFIG_PACKAGE_kmod-usb-dwc2=y
+
+        CONFIG_PACKAGE_kmod-usb-dwc3=y
+
+        CONFIG_PACKAGE_kmod-usb-ehci=y
+
+        CONFIG_PACKAGE_kmod-usb-hid=y
+
+        CONFIG_PACKAGE_kmod-usb-ledtrig-usbport=y
+
+        CONFIG_PACKAGE_kmod-usb-net=y
+
+        CONFIG_PACKAGE_kmod-usb-net-asix=y
+
+        CONFIG_PACKAGE_kmod-usb-net-asix-ax88179=y
+
+        CONFIG_PACKAGE_kmod-usb-net-cdc-eem=y
+
+        CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y
+
+        CONFIG_PACKAGE_kmod-usb-net-cdc-mbim=y
+
+        CONFIG_PACKAGE_kmod-usb-net-cdc-ncm=y
+
+        CONFIG_PACKAGE_kmod-usb-net-cdc-subset=y
+
+        CONFIG_PACKAGE_kmod-usb-net-dm9601-ether=y
+
+        CONFIG_PACKAGE_kmod-usb-net-hso=y
+
+        CONFIG_PACKAGE_kmod-usb-net-huawei-cdc-ncm=y
+
+        CONFIG_PACKAGE_kmod-usb-net-ipheth=y
+
+        CONFIG_PACKAGE_kmod-usb-net-kalmia=y
+
+        CONFIG_PACKAGE_kmod-usb-net-kaweth=y
+
+        CONFIG_PACKAGE_kmod-usb-net-mcs7830=y
+
+        CONFIG_PACKAGE_kmod-usb-net-pegasus=y
+
+        CONFIG_PACKAGE_kmod-usb-net-pl=y
+
+        CONFIG_PACKAGE_kmod-usb-net-qmi-wwan=y
+
+        CONFIG_PACKAGE_kmod-usb-net-rndis=y
+
+        CONFIG_PACKAGE_kmod-usb-net-rtl8150=y
+
+        CONFIG_PACKAGE_kmod-usb-net-rtl8152=y
+
+        CONFIG_PACKAGE_kmod-usb-net-sierrawireless=y
+
+        CONFIG_PACKAGE_kmod-usb-net-smsc95xx=y
+
+        CONFIG_PACKAGE_kmod-usb-net-sr9700=y
+
+        CONFIG_PACKAGE_kmod-usb-ohci=y
+
+        CONFIG_PACKAGE_kmod-usb-ohci-pci=y
+
+        CONFIG_PACKAGE_kmod-usb-printer=y
+
+        CONFIG_PACKAGE_kmod-usb-serial=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-ark3116=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-belkin=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-ch341=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-cp210x=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-cypress-m8=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-dmx_usb_module=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-edgeport=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-ftdi=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-garmin=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-ipw=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-keyspan=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-mct=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-mos7720=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-mos7840=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-option=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-oti6858=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-pl2303=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-qualcomm=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-sierrawireless=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-simple=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-ti-usb=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-visor=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-wwan=y
+
+        CONFIG_PACKAGE_kmod-usb-serial-xr_usb_serial_common=y
+
+        CONFIG_PACKAGE_kmod-usb-storage=y
+
+        CONFIG_PACKAGE_kmod-usb-storage-extras=y
+
+        CONFIG_PACKAGE_kmod-usb-storage-uas=y
+
+        CONFIG_PACKAGE_kmod-usb-uhci=y
+
+        CONFIG_PACKAGE_kmod-usb-wdm=y
+
+        CONFIG_PACKAGE_kmod-usb-yealink=y
+
+        CONFIG_PACKAGE_kmod-usb2=y
+
+        CONFIG_PACKAGE_kmod-usb2-pci=y
+
+        CONFIG_PACKAGE_kmod-usb3=y
+
+        CONFIG_PACKAGE_kmod-usbip=y
+
+        CONFIG_PACKAGE_kmod-usbip-client=y
+
+        CONFIG_PACKAGE_kmod-usbip-server=y
+
+        CONFIG_PACKAGE_kmod-usbmon=y
+
+        EOF
+
+        # 
+
+        # ========================固件定制部分结束========================
+
+        # 
+
+        sed -i 's/^[ \t]*//g' ./.config
+
+        make defconfig
+
+     - name: Make Download
+
+       run: |
+
+        df -h
+
+        cd openwrt
+
+        make -j8 download V=s 
+
+        find ./dl/ -size -1024c -exec rm -f {} \;
+
+     - name: Multi-thread  Compile Openwrt
+
+       run: |
+
+          cd openwrt
+
+          echo -e "$(nproc) thread build."
+
+          make -j$(nproc) V=s
+
+     - name: Single-thread  Compile Openwrt
+
+       if: failure()
+
+       run: |
+
+          cd openwrt
+
+          make -j1 V=s     
+
+     - name: Prepare Artifact
+
+       run: |
+
+        rm -rf ./Firmware/
+
+        mkdir -p ./Firmware/
+
+        find openwrt/bin/targets/ -name "*sysupgrade*bin*" | xargs -i mv -f {} ./Firmware/
+
+        find openwrt/bin/targets/ -name "*combined*img*" | xargs -i mv -f {} ./Firmware/
+
+        cd ./Firmware
+
+        gzip *.img
+
+     - name: Upload Firmware
+
+       uses: actions/upload-artifact@main
+
+       with:
+
+          name: SirpdboyOpenWrt-IPV6-Firmware
+
+          path: ./Firmware/
+
+     - name: Upload  IPK
+
+       uses: actions/upload-artifact@main
+
+       with:
+
+          name: SirpdboyOpenWrt-IPV6-Ipk
+
+          path: ./openwrt/bin/packages/
+
