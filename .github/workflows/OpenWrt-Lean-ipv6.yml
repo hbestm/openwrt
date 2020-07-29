@@ -6,7 +6,7 @@
 
 # https://github.com/sirpdboy/Openwrt
 
-name: Sirpdboy-OpenWrt-Lean-ipv6-CI
+name: OpenWrt-Lean-ipv6-CI
 
 on:
 
